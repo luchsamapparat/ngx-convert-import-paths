@@ -1,7 +1,7 @@
 {
   "name": "@luchsamapparat/ngx-extract-templates",
-  "version": "0.0.2",
-  "description": "Extracts inline-template from Angular components.",
+  "version": "0.0.3",
+  "description": "Extract inline-template from Angular components.",
   "main": "dist/index.js",
   "bin": "./dist/index.js",
   "scripts": {
@@ -14,7 +14,12 @@
     "templates"
   ],
   "author": "Marvin Luchs <marvin@luchs.org>",
-  "license": "ISC",
+  "license": "MIT",
+  "homepage": "https://github.com/luchsamapparat/ngx-extract-templates#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/luchsamapparat/ngx-extract-templates.git"
+  },
   "devDependencies": {
     "@types/chalk": "2.2.0",
     "@types/lodash": "4.14.161",
