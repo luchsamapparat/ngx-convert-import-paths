@@ -1,11 +1,11 @@
 {
   "name": "@luchsamapparat/ngx-extract-templates",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Extracts inline-template from Angular components.",
   "main": "dist/index.js",
   "bin": "./dist/index.js",
   "scripts": {
-    "build": "tsc -p .",
+    "prepublish": "tsc -p .",
     "start": "node ./dist/index.js",
     "dev": "ts-node ./src/index.ts"
   },

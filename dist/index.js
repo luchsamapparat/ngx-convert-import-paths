@@ -44,7 +44,7 @@ async function run(workspacePath) {
     const tsProject = getTsProject(workspacePath);
     const workspace = await getAngularWorkspace(workspacePath);
     getProjects(workspace)
-        .map(project => getTsConfigPath(workspacePath, project))
+        .map(project => getTsConfigPathForProject(workspacePath, project))
         .filter(tsConfigPath => fs_1.existsSync(tsConfigPath))
         .forEach(tsConfigPath => tsProject.addSourceFilesFromTsConfig(tsConfigPath));
     console.log(chalk_1.cyan(`${chalk_1.white(tsProject.getSourceFiles().length)} source files found in workspace.`));
@@ -160,7 +160,7 @@ function getProjects(workspace) {
         ...project
     }));
 }
-function getTsConfigPath(workspacePath, { projectType, root }) {
+function getTsConfigPathForProject(workspacePath, { projectType, root }) {
     const fileNameMapping = {
         [ProjectType.Application]: 'tsconfig.app.json',
         [ProjectType.Library]: 'tsconfig.lib.json'
@@ -168,12 +168,23 @@ function getTsConfigPath(workspacePath, { projectType, root }) {
     return path.join(workspacePath, root, fileNameMapping[projectType]);
 }
 function getTsProject(workspacePath) {
-    const tsConfigPath = path.join(workspacePath, 'tsconfig.json');
-    const absoluteTsConfigPath = path.join(process.cwd(), tsConfigPath);
-    console.log(chalk_1.cyan(`Reading tsconfig.json from ${chalk_1.white(absoluteTsConfigPath)}.`));
-    return new ts_morph_1.Project({
-        tsConfigFilePath: path.join(workspacePath, 'tsconfig.json')
-    });
+    const tsConfigFilePath = getRootTsConfigPath(workspacePath);
+    const absoluteTsConfigFilePath = path.join(process.cwd(), tsConfigFilePath);
+    console.log(chalk_1.cyan(`Reading tsconfig from ${chalk_1.white(absoluteTsConfigFilePath)}.`));
+    return new ts_morph_1.Project({ tsConfigFilePath });
+}
+function getRootTsConfigPath(workspacePath) {
+    const tsConfigFileNames = ['tsconfig.json', 'tsconfig.base.json'];
+    const tsConfigFileName = tsConfigFileNames
+        .find(fileName => fs_1.existsSync(path.join(process.cwd(), workspacePath, fileName)));
+    if (lodash_1.isUndefined(tsConfigFileName)) {
+        console.error(chalk_1.red(`No tsconfig file found in workspace directory:`));
+        tsConfigFileNames
+            .map(fileName => path.join(workspacePath, fileName))
+            .forEach(filePath => console.error(chalk_1.red(`  ${filePath}`)));
+        process.exit(-1);
+    }
+    return path.join(workspacePath, tsConfigFileName);
 }
 async function getAngularWorkspace(workspacePath) {
     const angularJsonPath = path.join(workspacePath, 'angular.json');
