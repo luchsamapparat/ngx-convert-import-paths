@@ -7,7 +7,7 @@
   "scripts": {
     "prepublish": "tsc -p .",
     "start": "node ./dist/index.js",
-    "dev": "ts-node ./src/index.ts"
+    "dev": "ts-node ./src/index.ts -p ../path/to/project"
   },
   "keywords": [
     "angular",

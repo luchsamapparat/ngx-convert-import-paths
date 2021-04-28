@@ -1,11 +1,10 @@
 #!/usr/bin/env node
 
-import { cyan, green, grey, red, white, yellow } from 'chalk';
+import { cyan, green, red, white, yellow } from 'chalk';
 import { existsSync, promises as fs } from 'fs';
 import { isUndefined, map } from 'lodash';
 import * as path from 'path';
-import pretty from 'pretty';
-import { ClassDeclaration, Decorator, ImportDeclaration, ObjectLiteralExpression, Project as TsProject, PropertyAssignment, SourceFile, StringLiteral } from 'ts-morph';
+import { Project as TsProject, SourceFile } from 'ts-morph';
 import yargs from 'yargs';
 
 const options = yargs
@@ -31,15 +30,11 @@ export async function run(workspacePath: string) {
 
     console.log(cyan(`${white(tsProject.getSourceFiles().length)} source files found in workspace.`));
 
-    const components = tsProject.getSourceFiles()
-        .flatMap(sourceFile => sourceFile.getClasses())
-        .filter(isComponent);
+    for (const sourceFile of tsProject.getSourceFiles()) {
+        await convertImportPaths(sourceFile);
+    }
 
-    console.log(cyan(`${white(components.length)} components found in workspace.`));
-
-    components.forEach(component => extractTemplateToFile(component));
-
-    console.log(green(`Template extraction completed.`));
+    console.log(green(`Import path conversion completed.`));
 }
 
 interface Workspace {
@@ -72,114 +67,24 @@ function verifyWorkspacePathExists(workspacePath: string) {
     }
 }
 
-async function extractTemplateToFile(componentClass: ClassDeclaration) {
-    const template = getTemplate(componentClass);
+async function convertImportPaths(sourceFile: SourceFile) {
+    console.log(`Converting imports in ${yellow(sourceFile.getFilePath())}.`);
 
-    const componentFileName = componentClass.getSourceFile().getFilePath();
+    sourceFile.getImportDeclarations()
+        .filter(importDeclaration => (
+            importDeclaration.getModuleSpecifierValue().startsWith('apps/') ||
+            importDeclaration.getModuleSpecifierValue().startsWith('libs/')
+        ))
+        .forEach(importDeclaration => importDeclaration.setModuleSpecifier(
+            sourceFile.getRelativePathAsModuleSpecifierTo(importDeclaration.getModuleSpecifierSourceFile()!)
+        ))
 
-    if (isUndefined(template)) {
-        console.log(grey(`Skipping ${componentFileName}. No inline-template found.`));
-        return;
-    }
-
-    console.log(`Extracting inline-template from ${yellow(componentFileName)}.`);
-
-    const templatePath = getTemplatePathForComponent(componentClass);
-
-    await writeTemplateFile(templatePath, template);
-
-    replaceTemplateInMetadataWithPath(componentClass, templatePath);
-
-    return await saveChanges(componentClass);
+    return await saveChanges(sourceFile);
 }
 
-async function saveChanges(componentClass: ClassDeclaration) {
-    const componentFile = componentClass.getSourceFile();
-    componentFile.formatText();
-    return await componentFile.save();
-}
-
-function replaceTemplateInMetadataWithPath(componentClass: ClassDeclaration, templatePath: string) {
-    const componentMetadata = getComponentMetadata(componentClass);
-
-    if (isUndefined(componentMetadata)) {
-        return;
-    }
-
-    componentMetadata.getProperty('template')?.remove();
-    componentMetadata.addPropertyAssignment({
-        name: 'templateUrl',
-        initializer: `'./${path.basename(templatePath)}'`
-    });
-}
-
-async function writeTemplateFile(templatePath: string, template: string) {
-    return await fs.writeFile(templatePath, pretty(template, { ocd: true }));
-}
-
-function getTemplatePathForComponent(componentClass: ClassDeclaration) {
-    return componentClass.getSourceFile().getFilePath().replace(/\.ts$/, '.html');
-}
-
-function getTemplate(componentClass: ClassDeclaration) {
-    const componentMetadata = getComponentMetadata(componentClass);
-
-    if (isUndefined(componentMetadata)) {
-        return undefined;
-    }
-
-    const templateProperty = componentMetadata.getProperty('template') as PropertyAssignment;
-
-    if (isUndefined(templateProperty)) {
-        return undefined;
-    }
-
-    try {
-        return (templateProperty.getInitializer() as StringLiteral).getLiteralValue();
-    } catch (error) {
-        console.error(red(`Cannot read template of ${componentClass.getSourceFile().getFilePath()}`));
-        console.error(red(error));
-        return undefined;
-    }
-}
-
-function getComponentMetadata(componentClass: ClassDeclaration) {
-    const componentDecorator = getComponentDecorator(componentClass);
-
-    if (isUndefined(componentDecorator)) {
-        return undefined;
-    }
-
-    return componentDecorator.getArguments()[0] as ObjectLiteralExpression;
-}
-
-function isComponent(cls: ClassDeclaration) {
-    return !isUndefined(getComponentDecorator(cls));
-}
-
-function getComponentDecorator(cls: ClassDeclaration) {
-    return cls.getDecorators().find(isComponentDecorator);
-}
-
-function isComponentDecorator(decorator: Decorator) {
-    if (decorator.getName() !== 'Component') {
-        return false;
-    }
-
-    return hasComponentDecoratorImport(decorator.getSourceFile());
-}
-
-function hasComponentDecoratorImport(sourceFile: SourceFile) {
-    return !isUndefined(sourceFile.getImportDeclaration(isComponentDecoratorImport))
-}
-
-function isComponentDecoratorImport(importDeclaration: ImportDeclaration) {
-    if (importDeclaration.getModuleSpecifier().getLiteralValue() !== '@angular/core') {
-        return false;
-    }
-
-    return importDeclaration.getNamedImports()
-        .some(namedImport => namedImport.getName() === 'Component')
+async function saveChanges(sourceFile: SourceFile) {
+    // sourceFile.formatText({ baseIndentSize: 4 });
+    return await sourceFile.save();
 }
 
 async function readWorkspace(path: string): Promise<Workspace> {
